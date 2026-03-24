@@ -145,7 +145,12 @@ def main(cfg):
         lambda_ssim=cfg.lambda_ssim,
         lambda_edge=cfg.lambda_edge,
     ).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr_start, weight_decay=1e-8)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr_start, weight_decay=1e-4)
+
+    # CosineAnnealingWarmRestarts：周期性回升，跳出局部最优
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, T_0=cfg.cosine_T0, T_mult=2, eta_min=cfg.lr_end
+    )
 
     epoch_start = 0
     if cfg.resume:
@@ -158,18 +163,18 @@ def main(cfg):
                 optimizer.load_state_dict(ckpt["optimizer"])
             except Exception as e:
                 print("skip optimizer state:", e)
+            if "scheduler" in ckpt:
+                try:
+                    scheduler.load_state_dict(ckpt["scheduler"])
+                except Exception as e:
+                    print("skip scheduler state:", e)
             epoch_start = ckpt.get("epoch", 0)
-
-    # 学习率衰减
-    lr_schedule = np.logspace(np.log10(cfg.lr_start), np.log10(cfg.lr_end), cfg.epoch)
 
     print(f"start training from epoch {epoch_start} ...")
     best_val_loss = float("inf")
 
     for e in range(epoch_start, cfg.epoch):
-        lr = float(lr_schedule[min(e, len(lr_schedule) - 1)])
-        for g in optimizer.param_groups:
-            g["lr"] = lr
+        lr = optimizer.param_groups[0]["lr"]
 
         # ---- train ----
         model.train()
@@ -215,6 +220,9 @@ def main(cfg):
                 val_count += inp.size(0)
         avg_val = val_loss_sum / max(val_count, 1)
 
+        # 更新学习率
+        scheduler.step()
+
         print(f"epoch {e+1}/{cfg.epoch}  train_loss={avg_train:.7f}  "
               f"val_loss={avg_val:.7f}  lr={lr:.6f}")
 
@@ -229,6 +237,7 @@ def main(cfg):
                 "epoch": e + 1,
                 "state_dict": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
                 "val_loss": avg_val,
             }, ckpt_path)
             tag = " [best]" if is_best else ""
@@ -263,8 +272,10 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=2,
                         help="每张 652x688(padded) 约占 ~1.2 MB 显存，按GPU酌情调大")
     parser.add_argument("--lr_start", type=float, default=1e-3)
-    parser.add_argument("--lr_end", type=float, default=1e-5)
-    parser.add_argument("--grad_max", type=float, default=0.1)
+    parser.add_argument("--lr_end", type=float, default=1e-6)
+    parser.add_argument("--grad_max", type=float, default=1.0)
+    parser.add_argument("--cosine_T0", type=int, default=20,
+                        help="CosineAnnealingWarmRestarts 第一个周期长度")
 
     # 日志 & 保存
     parser.add_argument("--log_step", type=int, default=20)
