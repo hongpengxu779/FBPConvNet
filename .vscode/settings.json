@@ -1,0 +1,15 @@
+{
+    "python.defaultInterpreterPath": "C:\\ProgramData\\anaconda3\\envs\\pytorch_118\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.condaPath": "C:\\ProgramData\\anaconda3\\Scripts\\conda.exe",
+    "terminal.integrated.profiles.windows": {
+        "cmd (pytorch_118)": {
+            "path": "C:\\Windows\\System32\\cmd.exe",
+            "args": [
+                "/K",
+                "e:\\xu\\CT\\fbpconvnet_pytorch\\.vscode\\init_pytorch_118_env.cmd"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "cmd (pytorch_118)"
+}
