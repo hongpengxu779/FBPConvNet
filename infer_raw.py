@@ -2,10 +2,14 @@ import argparse
 import numpy as np
 import torch
 from model import FBPCONVNet
+from model_v2 import FBPCONVNetV2
 
 
-def load_model(ckpt_path, device):
-    model = FBPCONVNet().to(device)
+def load_model(ckpt_path, device, version="v2"):
+    if version == "v2":
+        model = FBPCONVNetV2().to(device)
+    else:
+        model = FBPCONVNet().to(device)
     ckpt = torch.load(ckpt_path, map_location=device)
     if isinstance(ckpt, dict):
         if "state_dict" in ckpt:
@@ -24,8 +28,10 @@ def load_model(ckpt_path, device):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_raw", type=str, default="E:\\xu\\CT\\DataSets\\321_357_1400_0.14185_low_180.raw")
-    parser.add_argument("--output_raw", type=str, default="E:\\xu\\CT\\DataSets\\321_357_1400_0.14185_low_180_denoised.raw")
+    parser.add_argument("--output_raw", type=str, default="E:\\xu\\CT\\DataSets\\321_357_1400_0.14185_low_180_denoised_v2.raw")
     parser.add_argument("--ckpt", type=str, default="./checkpoints/raw_epoch-30.pkl")
+    parser.add_argument("--model_version", type=str, default="v2",
+                        choices=["v1", "v2"], help="v1=原版, v2=改进版")
     parser.add_argument("--x", type=int, default=321)
     parser.add_argument("--y", type=int, default=357)
     parser.add_argument("--z", type=int, default=1400)
@@ -41,7 +47,7 @@ def main():
     vol = arr.reshape((args.x, args.y, args.z), order='F')
 
     # 2) 加载模型
-    model = load_model(args.ckpt, device)
+    model = load_model(args.ckpt, device, version=args.model_version)
 
     # 3) 获取网络训练时的图像尺寸（用于 pad）
     #    原训练数据可能是 512x512，需要 pad 到合适尺寸

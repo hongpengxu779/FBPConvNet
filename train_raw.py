@@ -12,6 +12,8 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
 from model import FBPCONVNet
+from model_v2 import FBPCONVNetV2
+from losses import CombinedLoss
 
 
 # ──────────────────── Dataset ────────────────────
@@ -129,9 +131,20 @@ def main(cfg):
     val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False,
                             num_workers=0, pin_memory=True)
 
-    # 模型
-    model = FBPCONVNet().to(device)
-    criterion = nn.MSELoss()
+    # 模型（支持 v1 / v2 切换）
+    if cfg.model_version == "v2":
+        print("using FBPCONVNetV2 (improved)")
+        model = FBPCONVNetV2().to(device)
+    else:
+        print("using FBPCONVNet (original)")
+        model = FBPCONVNet().to(device)
+
+    # 损失函数：混合 L1 + SSIM + Edge
+    criterion = CombinedLoss(
+        lambda_l1=cfg.lambda_l1,
+        lambda_ssim=cfg.lambda_ssim,
+        lambda_edge=cfg.lambda_edge,
+    ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr_start, weight_decay=1e-8)
 
     epoch_start = 0
@@ -235,6 +248,15 @@ if __name__ == "__main__":
     parser.add_argument("--x", type=int, default=321)
     parser.add_argument("--y", type=int, default=357)
     parser.add_argument("--z", type=int, default=1400)
+
+    # 模型
+    parser.add_argument("--model_version", type=str, default="v2",
+                        choices=["v1", "v2"], help="v1=原版, v2=改进版")
+
+    # 损失权重
+    parser.add_argument("--lambda_l1", type=float, default=1.0)
+    parser.add_argument("--lambda_ssim", type=float, default=0.5)
+    parser.add_argument("--lambda_edge", type=float, default=0.1)
 
     # 训练
     parser.add_argument("--epoch", type=int, default=200)
